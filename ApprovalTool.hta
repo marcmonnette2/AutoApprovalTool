@@ -1,0 +1,389 @@
+<html>
+<head>
+<title>Approval Drawing Tool</title>
+<HTA:APPLICATION
+    ID="app"
+    APPLICATIONNAME="ApprovalDrawingTool"
+    BORDER="thin"
+    CAPTION="yes"
+    SHOWINTASKBAR="yes"
+    SINGLEINSTANCE="yes"
+    SYSMENU="yes"
+    WINDOWSTATE="normal"
+    SCROLL="no"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="no">
+<style>
+    body { font-family: Arial; font-size: 10pt; margin: 10px; }
+    label { display: block; margin-top: 8px; }
+    input[type=text], select { width: 300px; padding: 4px; }
+    #btnSubmit { margin-top: 12px; padding: 6px 12px; }
+</style>
+<script language="VBScript">
+
+Sub Window_OnLoad()
+    Dim names, i, opt
+    names = Array("Jamie Strain", "Marc Monnette", "Nijaz Hodzic", "Vijay Pawar", "Jesse Zhao", "Joshua Georgiou")
+    For i = 0 To UBound(names)
+        Set opt = document.createElement("OPTION")
+        opt.text = names(i)
+        opt.value = names(i)
+        document.getElementById("cmbSignature").add(opt)
+    Next
+    document.getElementById("cmbSignature").selectedIndex = 0
+End Sub
+
+Sub btnSubmit_OnClick()
+    Dim salesOrder, revision, selectedName, followUp
+    salesOrder = Trim(txtSalesOrder.value)
+    revision = Trim(txtRevision.value)
+    selectedName = cmbSignature.value
+    followUp = chkFollowUp.checked
+
+    If salesOrder = "" Or revision = "" Or selectedName = "" Then
+        MsgBox "Error: Please Fill Out All Fields.", vbExclamation, "Validation Error"
+        Exit Sub
+    End If
+
+    Dim host, resultCode, MSSRead, timeoutVal
+    timeoutVal = 5
+
+    On Error Resume Next
+    Set host = CreateObject("BZWhll.WhllObj")
+    If Err.Number <> 0 Then
+        MsgBox "Error: Unable to create BlueZone COM object." & vbCrLf & Err.Description, vbCritical, "BlueZone Error"
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    resultCode = host.Connect("A")
+    If resultCode <> 0 Then
+        MsgBox "Error: Unable To connect With BlueZone.", vbCritical, "BlueZone Error"
+        Exit Sub
+    End If
+
+    ' Navigate BlueZone terminal per your VBA logic
+    host.SendKeys "@5"
+    host.WaitReady timeoutVal, 0
+
+    Do
+        host.SendKeys "@3"
+        host.WaitReady timeoutVal, 0
+        host.ReadScreen MSSRead, 15, 1, 1
+    Loop While MSSRead <> " YLYL00 PRIMARY"
+
+    host.WriteScreen "3", 2, 14
+    host.WaitReady timeoutVal, 0
+    host.SendKeys "@E"
+    host.WaitReady timeoutVal, 0
+
+    Do
+        host.ReadScreen MSSRead, 24, 1, 1
+    Loop While MSSRead <> " MGMENU ORDER ENTRY MENU"
+
+    host.WriteScreen "B2", 2, 14
+    host.WaitReady timeoutVal, 0
+
+    host.WriteScreen salesOrder, 23, 2
+    host.WaitReady timeoutVal, 0
+    host.SendKeys "@E"
+    host.WaitReady timeoutVal, 0
+    host.ReadScreen MSSRead, 35, 1, 1
+
+    If MSSRead = " MGMENU ORDER NUMBER IS NOT ON FILE" Then
+        MsgBox "Error: Order Number is Not On File.", vbCritical, "Error"
+        Exit Sub
+    End If
+
+    ' Read screen values
+    Dim customerPO, cpn, shipToCustomer, ZIPRead, StateRead, PlantsRead
+    host.ReadScreen MSSRead, 11, 3, 25
+    customerPO = Trim(MSSRead)
+    host.ReadScreen MSSRead, 25, 20, 9
+    cpn = Trim(MSSRead)
+    host.ReadScreen MSSRead, 24, 4, 47
+    shipToCustomer = Trim(MSSRead)
+    host.ReadScreen MSSRead, 12, 6, 69
+    ZIPRead = Trim(MSSRead)
+    host.ReadScreen MSSRead, 2, 6, 66
+    StateRead = Trim(MSSRead)
+
+    If StateRead = "" Or Not IsValidState(StateRead) Then
+        host.ReadScreen MSSRead, 2, 7, 66
+        StateRead = Trim(MSSRead)
+    End If
+
+    host.ReadScreen MSSRead, 4, 20, 2
+    If MSSRead = "_ 00" Then
+        host.WriteScreen "S", 20, 2
+        host.WaitReady timeoutVal, 0
+        host.SendKeys "@E"
+        host.WaitReady timeoutVal, 0
+        host.ReadScreen MSSRead, 2, 4, 77
+        PlantsRead = Trim(MSSRead)
+        host.SendKeys "@3"
+        host.WaitReady timeoutVal, 0
+    Else
+        MsgBox "Plant Not Found.", vbCritical, "Error"
+        Exit Sub
+    End If
+
+    ' Build email signature and additional CC
+    Dim emailSignature, additionalCC
+    Select Case selectedName
+        Case "Marc Monnette"
+            emailSignature = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                             "________________________________________<br>" & _
+                             "Marc&nbsp;Monnette<br>" & _
+                             "Design&nbsp;Engineer&nbsp;II<br>" & _
+                             "Parker&nbsp;Hannifin&nbsp;Corporation<br>" & _
+                             "Hydraulic&nbsp;Actuator&nbsp;Division<br>" & _
+                             "Direct Phone:&nbsp;+1&nbsp;(847)&nbsp;294-2605<br>" & _
+                             "marc.monnette@&nbsp;parker.com<br>"
+            additionalCC = "marc.monnette@parker.com"
+        Case "Jamie Strain"
+            emailSignature = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                             "________________________________________<br>" & _
+                             "Regards,<br>" & _
+                             "James&nbsp;R.&nbsp;Strain<br>" & _
+                             "Engineering&nbsp;Manager<br>" & _
+                             "ETO&nbsp;Cylinder&nbsp;Products<br>" & _
+                             "Parker&nbsp;Hannifin&nbsp;Corporation<br>" & _
+                             "Motion&nbsp;Systems&nbsp;Group<br>" & _
+                             "Hydraulic&nbsp;Actuator&nbsp;Division<br>" & _
+                             "Direct:&nbsp;847&nbsp;294&nbsp;2730<br>" & _
+                             "Fax:&nbsp;847&nbsp;294&nbsp;2739<br>" & _
+                             "jstrain@parker.com<br>" & _
+                             "<a href='http://www.parker.com'>www.parker.com</a><br>"
+            additionalCC = ""
+        Case "Nijaz Hodzic"
+            emailSignature = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                             "________________________________________<br>" & _
+                             "Nijaz&nbsp;Hodzic<br>" & _
+                             "Senior&nbsp;Engineer<br>" & _
+                             "Parker&nbsp;Hannifin&nbsp;Corporation<br>" & _
+                             "NHODZIC@Parker.com<br>" & _
+                             "Direct:&nbsp;847-699-5234<br>"
+            additionalCC = "NHodzic@parker.com"
+        Case "Vijay Pawar"
+            emailSignature = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                             "________________________________________<br>" & _
+                             "Regards,<br>" & _
+                             "Vijay&nbsp;Pawar<br>" & _
+                             "Senior&nbsp;Engineer<br>" & _
+                             "Parker&nbsp;Hannifin&nbsp;Corporation<br>" & _
+                             "Vijay.pawar@parker.com<br>" & _
+                             "Direct:&nbsp;(847)-294-2654<br>"
+            additionalCC = "Vijay.pawar@parker.com"
+        Case "Joshua Georgiou"
+            emailSignature = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                             "________________________________________<br>" & _
+                             "Regards,<br>" & _
+                             "Joshua&nbsp;Georgiou<br>" & _
+                             "Design&nbsp;Engineer&nbsp;I<br>" & _
+                             "ETO<br>" & _
+                             "Parker&nbsp;Hannifin&nbsp;Corporation<br>" & _
+                             "Hydraulic&nbsp;Actuator&nbsp;Division/Engineering&nbsp;Dept.<br>" & _
+                             "Direct&nbsp;Phone:&nbsp;18472942712<br>" & _
+                             "Joshua.Georgiou@parker.com<br>"
+            additionalCC = "Joshua.Georgiou@parker.com"
+        Case "Jesse Zhao"
+            emailSignature = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                             "________________________________________<br>" & _
+                             "Jesse&nbsp;Zhao<br>" & _
+                             "Design&nbsp;Engineer<br>" & _
+                             "Motion&nbsp;Systems&nbsp;Group<br>" & _
+                             "Hydraulic&nbsp;Actuator&nbsp;Division<br>" & _
+                             "500&nbsp;S&nbsp;Wolf&nbsp;Rd<br>" & _
+                             "Des&nbsp;Plaines,&nbsp;IL&nbsp;60016<br>" & _
+                             "847.294.2734<br>" & _
+                             "Jesse.Zhao@parker.com<br>"
+            additionalCC = "Jesse.Zhao@parker.com"
+        Case Else
+            emailSignature = "Default Signature Here"
+            additionalCC = ""
+    End Select
+
+    ' Build email body
+    Dim bodyText
+    If Not followUp Then
+        bodyText = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                   "<a href='mailto:jcardholder@parker.com'>Parker Hannifin Corporation</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>" & _
+                   "<a href='http://Motion Systems Group'>Motion Systems Group</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>" & _
+                   "<a href='http://Cylinder and Accumulator Division'>Cylinder and Accumulator Division</a><br><br>" & _
+                   "500 South Wolf Road<br>" & _
+                   "Des Plaines, IL 60016<br>" & _
+                   "Office&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;847 298 2400<br>" & _
+                   "Fax&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;847 294 2739<br>" & _
+                   "Email&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href='mailto:cyl.approval.dwg@parker.com'>cyl.approval.dwg@parker.com</a><br><br>" & _
+                   "Reference:<br>Customer Name:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & shipToCustomer & "<br>" & _
+                   "Customer Purchase Order:&nbsp;&nbsp;&nbsp;" & customerPO & "<br>" & _
+                   "Sales Order #:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & salesOrder & "<br>" & _
+                   "Approval Drawing #:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & cpn & "-1, Revision (" & UCase(revision) & ")<br><br>" & _
+                   "In accordance with the terms of the above order, certified dimensional drawings are forwarded to your attention. We are holding all work until we have your approval to proceed.<br><br>" & _
+                   "Please verify these drawings and have one (1) copy initialed and returned to me. We will then release your order for engineering and manufacture.<br><br>" & _
+                   "If you have any questions regarding these drawings, please feel free to contact me. Questions pertaining to other areas may be addressed to your normal Marketing contact.<br><br>" & _
+                   emailSignature & "</span>"
+    Else
+        bodyText = "<span style='font-family:Arial; font-size:10pt;'>" & _
+                   "<a href='mailto:jcardholder@parker.com'>Parker Hannifin Corporation</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>" & _
+                   "<a href='http://Motion Systems Group'>Motion Systems Group</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>" & _
+                   "<a href='http://Cylinder and Accumulator Division'>Cylinder and Accumulator Division</a><br><br>" & _
+                   "500 South Wolf Road<br>" & _
+                   "Des Plaines, IL 60016<br>" & _
+                   "Office&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;847 298 2400<br>" & _
+                   "Fax&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;847 294 2739<br>" & _
+                   "Email&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href='mailto:cyl.approval.dwg@parker.com'>cyl.approval.dwg@parker.com</a><br><br>" & _
+                   "Reference:<br>Customer Name:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & shipToCustomer & "<br>" & _
+                   "Customer Purchase Order:&nbsp;&nbsp;&nbsp;" & customerPO & "<br>" & _
+                   "Sales Order #:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & salesOrder & "<br>" & _
+                   "Approval Drawing #:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" & cpn & "-1, Revision (" & UCase(revision) & ")<br><br>" & _
+                   "This is a follow-up on the above-mentioned drawing, which was sent to you for your approval.<br><br>" & _
+                   "Please note, our ISO procedures require that I send a follow up letter periodically until we receive a signed approval drawing or cancellation of the order.<br><br>" & _
+                   "Since we have not received the ''Signed Approval Drawing'' we were wondering if you have any questions regarding the drawing.  For your convenience you can send the ''Signed Approved Drawing'' back by a number of ways:<br><br>" & _
+                   "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;E-Mail: " & "<a href='mailto:" & additionalCC & "'>" & additionalCC & "</a><br>" & _
+                   "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fax: (847) 699-5234 <br>" & _
+                   "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Regular Mail <br><br>" & _
+                   "If there are questions regarding this drawing, please feel free to contact me so we can proceed with your order." & "<br><br>" & _
+                   emailSignature & "</span>"
+    End If
+
+    ' Determine CAE Email
+    Dim caeEmail
+    caeEmail = GetCAEEmailByState(StateRead)
+
+    ' Determine Plant Service Email and additional CC
+    Dim plantServiceEmail
+    Select Case PlantsRead
+        Case "1B"
+            plantServiceEmail = "EUGService@parker.com"
+        Case "1C"
+            plantServiceEmail = "PLYService@parker.com"
+        Case "1G"
+            plantServiceEmail = "ATLService@parker.com"
+            If InStr(additionalCC, "Vijay.pawar@parker.com") = 0 Then
+                additionalCC = additionalCC & ";" & "Vijay.pawar@parker.com"
+            End If
+        Case "1H"
+            plantServiceEmail = "CORService@parker.com"
+        Case "1K"
+            plantServiceEmail = "GLDService@parker.com"
+            If InStr(additionalCC, "NHodzic@parker.com") = 0 Then
+                additionalCC = additionalCC & ";" & "NHodzic@parker.com"
+            End If
+        Case "1M"
+            plantServiceEmail = "STMservice@parker.com"
+        Case Else
+            plantServiceEmail = ""
+            additionalCC = ""
+    End Select
+
+    Dim alwaysCC
+    alwaysCC = "jstrain@parker.com"
+    If caeEmail <> "" Then alwaysCC = alwaysCC & ";" & caeEmail
+    If plantServiceEmail <> "" Then alwaysCC = alwaysCC & ";" & plantServiceEmail
+    If additionalCC <> "" Then alwaysCC = alwaysCC & ";" & additionalCC
+
+    ' Create Outlook Email
+    Dim outlookApp, newMail
+    On Error Resume Next
+    Set outlookApp = CreateObject("Outlook.Application")
+    If Err.Number <> 0 Then
+        MsgBox "Error: Outlook is not available." & vbCrLf & Err.Description, vbCritical, "Outlook Error"
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    Set newMail = outlookApp.CreateItem(0) ' olMailItem
+    newMail.Subject = "Approval Drawing for; " & shipToCustomer & " - Customer Purchase Order #: " & customerPO & " - Sales Order #: " & salesOrder & " - Approval Drawing #: " & cpn & "-1, Revision (" & UCase(revision) & ")"
+    newMail.HTMLBody = bodyText
+    newMail.CC = alwaysCC
+    newMail.Display
+
+    ' Final BlueZone navigation (same as VBA)
+    host.SendKeys "@5"
+    host.WaitReady timeoutVal, 0
+
+    Do
+        host.SendKeys "@3"
+        host.WaitReady timeoutVal, 0
+        host.ReadScreen MSSRead, 15, 1, 1
+    Loop While MSSRead <> " YLYL00 PRIMARY"
+
+    host.WriteScreen "3", 2, 14
+    host.WaitReady timeoutVal, 0
+    host.SendKeys "@E"
+    host.WaitReady timeoutVal, 0
+
+    Do
+        host.ReadScreen MSSRead, 24, 1, 1
+    Loop While MSSRead <> " MGMENU ORDER ENTRY MENU"
+
+    host.WriteScreen "B2", 2, 14
+    host.WaitReady timeoutVal, 0
+
+    ' MsgBox "Process completed. The application will now close.", vbInformation, "Done"
+    window.close
+End Sub
+
+Function IsValidState(s)
+    Dim states
+    states = Array("AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", _
+                   "GA", "HI", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", _
+                   "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE", _
+                   "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", _
+                   "SC", "SD", "TN", "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY")
+    Dim i
+    s = UCase(Trim(s))
+    For i = 0 To UBound(states)
+        If s = states(i) Then
+            IsValidState = True
+            Exit Function
+        End If
+    Next
+    IsValidState = False
+End Function
+
+Function GetCAEEmailByState(state)
+    Select Case UCase(state)
+        Case "MI", "WI"
+            GetCAEEmailByState = "bradley.price@parker.com"
+        Case "AK", "CO", "ID", "MT", "ND", "WA", "WY", "SD", "OR"
+            GetCAEEmailByState = "brian.wise@parker.com"
+        Case "IL", "IA", "KS", "MN", "MO", "NE"
+            GetCAEEmailByState = "cameren.scharret@parker.com"
+        Case "IN", "KY", "OH", "WV"
+            GetCAEEmailByState = "cmoss@parker.com"
+        Case "CT", "ME", "MA", "NH", "NY", "PA", "RI", "VT"
+            GetCAEEmailByState = "djickess@parker.com"
+        Case "LA", "OK", "TX"
+            GetCAEEmailByState = "gchauvin@parker.com"
+        Case "AZ", "CA", "HI", "NV", "NM", "UT"
+            GetCAEEmailByState = "davis.hanscom@parker.com"
+        Case "AL", "AR", "FL", "GA", "MS", "TN"
+            GetCAEEmailByState = "rdickson@parker.com"
+        Case "DE", "DC", "MD", "NC", "NJ", "SC", "VA"
+            GetCAEEmailByState = "sarah.maglosky@parker.com"
+        Case Else
+            GetCAEEmailByState = ""
+    End Select
+End Function
+
+</script>
+</head>
+<body onload="Window_OnLoad">
+    <h3>Approval Drawing Tool</h3>
+    <label for="txtSalesOrder">Sales Order #:</label>
+    <input type="text" id="txtSalesOrder" name="txtSalesOrder" />
+
+    <label for="txtRevision">Revision:</label>
+    <input type="text" id="txtRevision" name="txtRevision" />
+
+    <label for="cmbSignature">Signature on Email:</label>
+    <select id="cmbSignature" name="cmbSignature"></select>
+
+    <label><input type="checkbox" id="chkFollowUp" name="chkFollowUp" /> Follow-up email</label>
+
+    <input type="button" id="btnSubmit" value="Submit" onclick="btnSubmit_OnClick" />
+</body>
+</html>
