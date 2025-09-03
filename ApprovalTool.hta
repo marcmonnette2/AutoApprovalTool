@@ -12,28 +12,121 @@
     WINDOWSTATE="normal"
     SCROLL="no"
     MAXIMIZEBUTTON="no"
-    MINIMIZEBUTTON="no">
+    MINIMIZEBUTTON="no"
+    INNERBORDER="no"
+    BORDERSTYLE="normal"
+    SYSMENU="yes"
+    WINDOWRESIZE="no"
+    />
 <style>
-    body { font-family: Arial; font-size: 10pt; margin: 10px; }
-    label { display: block; margin-top: 8px; }
-    input[type=text], select { width: 300px; padding: 4px; }
-    #btnSubmit { margin-top: 12px; padding: 6px 12px; }
-</style>
-<script language="VBScript">
+    html, body {
+        margin: 0; padding: 0;
+        font-family: Arial, sans-serif;
+        font-size: 10pt;
+        background-color: #f5f5f5;
+        color: #333;
+        width: auto;
+        height: auto;
+        overflow: hidden;
+    }
+    body {
+        padding: 15px 20px;
+        box-sizing: border-box;
+        max-width: 360px;
+        margin: 0 auto; /* centers horizontally */
+    }
+    h3 {
+        margin-bottom: 12px;
+        font-weight: normal;
+        color: #222;
+        text-align: center;
+    }
+    label {
+        display: block;
+        margin-top: 12px;
+        font-weight: bold;
+    }
+    input[type=text], select {
+        width: 100%;
+        padding: 6px 8px;
+        margin-top: 4px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 10pt;
+        box-sizing: border-box;
+        transition: border-color 0.3s ease;
+    }
+    input[type=text]:focus, select:focus {
+        border-color: #0078d7;
+        outline: none;
+    }
+    label > input[type=checkbox] {
+        margin-right: 6px;
+        vertical-align: middle;
+        transform: scale(1.1);
+        cursor: pointer;
+    }
+    label.checkbox-label {
+        font-weight: normal;
+        margin-top: 14px;
+        cursor: pointer;
+        user-select: none;
+        color: #444;
+    }
+    #btnSubmit {
+        margin-top: 20px;
+        width: 100%;
+        padding: 10px 0;
+        background-color: #0078d7;
+        border: none;
+        border-radius: 5px;
+        color: white;
+        font-weight: bold;
+        font-size: 11pt;
+        cursor: pointer;
+        transition: background-color 0.25s ease;
+        display: block;
+    }
+    #btnSubmit:hover {
+        background-color: #005a9e;
+    }
+</style><script language="VBScript">
+
+Dim isSubmitted
+isSubmitted = False
 
 Sub Window_OnLoad()
     Dim names, i, opt
     names = Array("Jamie Strain", "Marc Monnette", "Nijaz Hodzic", "Vijay Pawar", "Jesse Zhao", "Joshua Georgiou")
+
+    ' Clear existing options first
+    Dim cmb
+    Set cmb = document.getElementById("cmbSignature")
+    Do While cmb.length > 0
+        cmb.remove(0)
+    Loop
+
     For i = 0 To UBound(names)
         Set opt = document.createElement("OPTION")
         opt.text = names(i)
         opt.value = names(i)
-        document.getElementById("cmbSignature").add(opt)
+        cmb.add(opt)
     Next
-    document.getElementById("cmbSignature").selectedIndex = 0
+    cmb.selectedIndex = 0
+
+    ' Resize and center window (adjust width/height as needed)
+    Dim desiredWidth, desiredHeight
+    desiredWidth = 380
+    desiredHeight = 380
+
+    window.resizeTo desiredWidth, desiredHeight
+    window.moveTo (screen.availWidth - desiredWidth) \ 2, (screen.availHeight - desiredHeight) \ 2
 End Sub
 
 Sub btnSubmit_OnClick()
+    If isSubmitted Then Exit Sub
+    isSubmitted = True
+
     Dim salesOrder, revision, selectedName, followUp
     salesOrder = Trim(txtSalesOrder.value)
     revision = Trim(txtRevision.value)
@@ -294,6 +387,7 @@ Sub btnSubmit_OnClick()
     End If
     On Error GoTo 0
 
+    ' Create and display email
     Set newMail = outlookApp.CreateItem(0) ' olMailItem
     newMail.Subject = "Approval Drawing for; " & shipToCustomer & " - Customer Purchase Order #: " & customerPO & " - Sales Order #: " & salesOrder & " - Approval Drawing #: " & cpn & "-1, Revision (" & UCase(revision) & ")"
     newMail.HTMLBody = bodyText
@@ -373,6 +467,7 @@ End Function
 </head>
 <body onload="Window_OnLoad">
     <h3>Approval Drawing Tool</h3>
+
     <label for="txtSalesOrder">Sales Order #:</label>
     <input type="text" id="txtSalesOrder" name="txtSalesOrder" />
 
@@ -382,7 +477,9 @@ End Function
     <label for="cmbSignature">Signature on Email:</label>
     <select id="cmbSignature" name="cmbSignature"></select>
 
-    <label><input type="checkbox" id="chkFollowUp" name="chkFollowUp" /> Follow-up email</label>
+    <label class="checkbox-label" for="chkFollowUp">
+        <input type="checkbox" id="chkFollowUp" name="chkFollowUp" /> Follow-up email
+    </label>
 
     <input type="button" id="btnSubmit" value="Submit" onclick="btnSubmit_OnClick" />
 </body>
